@@ -35,6 +35,8 @@ def get_driver_info():
         raise RuntimeError(f"Unsupported platform: {platform.system()} {platform.machine()}")
 
     expected_driver_path = Path.cwd() / "chromedriver"
+    if platform.system() == 'Windows':
+        expected_driver_path = expected_driver_path.with_suffix('.exe')
 
     url = "https://googlechromelabs.github.io/chrome-for-testing/known-good-versions-with-downloads.json"
     try:
