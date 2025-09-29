@@ -122,11 +122,18 @@ class Parser:
         return clues
 
     def _discover_new_links(self, soup, page_url):
-        """Discovers new, crawlable links on the page."""
+        """
+        Discovers new, crawlable links on the page.
+        This is intentionally broad to ensure wide traversal.
+        """
         new_links = set()
-        data_link_keywords = ['/data', '/datasets', '/catalog', 'dataset', 'viewdata']
-        # Don't crawl links that are likely direct file downloads
-        data_extensions = ['.csv', '.json', '.zip', '.geojson', '.shp', '.kml', '.xls', '.xlsx']
+        # Common file extensions to avoid crawling directly
+        file_extensions = [
+    '.csv', '.json', '.zip', '.geojson', '.shp', '.kml', '.xls', '.xlsx',
+    '.pdf', '.doc', '.docx', '.ppt', '.pptx', '.xml', '.rdf', '.txt',
+    '.png', '.jpg', '.jpeg', '.gif', '.svg'
+]
+
 
         for a_tag in soup.find_all('a', href=True):
             href = a_tag['href']
@@ -135,16 +142,16 @@ class Parser:
             if href.startswith(('mailto:', 'javascript:', '#')):
                 continue
 
-            # Skip if it's a file download link
-            if any(href.lower().endswith(ext) for ext in data_extensions):
-                continue
-
+            # Resolve the URL relative to the page URL
             full_url = urljoin(page_url, href)
 
-            # Ensure we are staying on the same domain
-            if urlparse(full_url).netloc == self.domain:
-                # Check if it looks like a promising link
-                if any(keyword in full_url.lower() for keyword in data_link_keywords):
-                    new_links.add(full_url)
+            # Basic check to skip URLs that are clearly file downloads
+            if any(full_url.lower().endswith(ext) for ext in file_extensions):
+                continue
+
+            # Ensure we are staying on the same domain and it's a http/https link
+            parsed_full_url = urlparse(full_url)
+            if parsed_full_url.netloc == self.domain and parsed_full_url.scheme in ['http', 'https']:
+                new_links.add(full_url)
 
         return new_links
