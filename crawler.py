@@ -2,14 +2,15 @@ import time
 from collections import deque
 from urllib.parse import urlparse
 
+import sys
 from selenium import webdriver
 from selenium.webdriver.chrome.service import Service as ChromeService
-from webdriver_manager.chrome import ChromeDriverManager
 from selenium.common.exceptions import WebDriverException
 
 from parser import Parser
 from scorer import Scorer
 from db_manager import DBManager
+from webdriver_setup import get_driver_info
 
 
 class Crawler:
@@ -38,19 +39,34 @@ class Crawler:
     def _init_driver(self):
         """Initializes a headless Chrome WebDriver."""
         print("Initializing WebDriver...")
+
+        try:
+            driver_path, driver_url = get_driver_info()
+        except RuntimeError as e:
+            print(f"Error: {e}", file=sys.stderr)
+            sys.exit(1)
+
+        if not driver_path.exists():
+            print("--- Chromedriver Not Found ---", file=sys.stderr)
+            print(f"Chromedriver is required to run this crawler.", file=sys.stderr)
+            print(f"Please download the correct version for your system from:", file=sys.stderr)
+            print(f"URL: {driver_url}", file=sys.stderr)
+            print(f"And place it in the current directory as 'chromedriver'", file=sys.stderr)
+            sys.exit(1)
+
         options = webdriver.ChromeOptions()
         options.add_argument('--headless')
         options.add_argument('--no-sandbox')
         options.add_argument('--disable-dev-shm-usage')
         options.add_argument('user-agent=OpenDataCrawler/1.0')
+
         try:
-            service = ChromeService(ChromeDriverManager().install())
+            service = ChromeService(executable_path=str(driver_path))
             driver = webdriver.Chrome(service=service, options=options)
             print("WebDriver initialized successfully.")
             return driver
         except Exception as e:
-            print(f"Error initializing WebDriver: {e}")
-            # Consider re-raising or handling more gracefully
+            print(f"Error initializing WebDriver: {e}", file=sys.stderr)
             raise
 
     def crawl(self):
