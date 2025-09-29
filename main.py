@@ -48,12 +48,25 @@ def main():
     )
 
     # 3. Start the crawl
+    log_id = None
+    status = "completed"
     try:
+        log_id = db_manager.start_crawl_log(args.url)
         crawler.crawl()
     except KeyboardInterrupt:
         print("\nCrawling interrupted by user.")
+        status = "interrupted"
     finally:
         # 4. Clean up
+        if log_id is not None:
+            print("Logging crawl session...")
+            db_manager.end_crawl_log(
+                log_id=log_id,
+                pages_crawled=crawler.pages_crawled,
+                datasets_found=crawler.datasets_found,
+                status=status
+            )
+
         print("Closing database connection.")
         db_manager.close()
         print("Done.")
