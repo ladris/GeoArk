@@ -70,16 +70,17 @@ class TestParser(unittest.TestCase):
             <a href="http://testdomain.com/catalog/all">Full Catalog</a>
             <a href="http://external.com/other">External Link</a>
             <a href="#section2">Anchor Link</a>
-            <a href="/about-us">Irrelevant Page</a>
+            <a href="/about-us">Relevant Page</a>
         </body></html>
         """
         page_url = self.base_url
         soup = BeautifulSoup(html, 'html.parser')
         new_links = self.parser._discover_new_links(soup, page_url)
 
-        self.assertEqual(len(new_links), 2)
+        self.assertEqual(len(new_links), 3)
         self.assertIn('http://testdomain.com/datasets/page1', new_links)
         self.assertIn('http://testdomain.com/catalog/all', new_links)
+        self.assertIn('http://testdomain.com/about-us', new_links)
 
     def test_date_clue_extraction(self):
         """Test the extraction of text snippets containing date-related keywords."""
