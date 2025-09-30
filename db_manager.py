@@ -30,9 +30,10 @@ class DBManager:
             source_domain TEXT NOT NULL
         );
         ''')
+        self.cursor.execute('DROP INDEX IF EXISTS idx_dataset_location;')
         self.cursor.execute('''
-        CREATE UNIQUE INDEX IF NOT EXISTS idx_dataset_location
-        ON datasets (source_url, download_link);
+        CREATE UNIQUE INDEX IF NOT EXISTS idx_download_link
+        ON datasets (download_link);
         ''')
         self.cursor.execute('''
         CREATE TABLE IF NOT EXISTS crawl_logs (
@@ -101,13 +102,31 @@ class DBManager:
             freshness_score, source_domain, last_crawled_timestamp
         ) VALUES (:dataset_title, :source_url, :download_link, :resource_type,
                   :freshness_score, :source_domain, :last_crawled_timestamp)
-        ON CONFLICT(source_url, download_link) DO UPDATE SET
+        ON CONFLICT(download_link) DO UPDATE SET
+            dataset_title = excluded.dataset_title,
+            source_url = excluded.source_url,
+            resource_type = excluded.resource_type,
             freshness_score = excluded.freshness_score,
-            last_crawled_timestamp = excluded.last_crawled_timestamp;
+            last_crawled_timestamp = excluded.last_crawled_timestamp,
+            source_domain = excluded.source_domain;
         '''
         dataset_data['last_crawled_timestamp'] = datetime.datetime.now()
         self.cursor.execute(sql, dataset_data)
         self.conn.commit()
+
+    def link_exists(self, download_link):
+        """
+        Checks if a dataset with the given download link already exists.
+
+        Args:
+            download_link (str): The download link to check.
+
+        Returns:
+            bool: True if the link exists, False otherwise.
+        """
+        sql = "SELECT 1 FROM datasets WHERE download_link = ?;"
+        self.cursor.execute(sql, (download_link,))
+        return self.cursor.fetchone() is not None
 
     def close(self):
         """Closes the database connection."""

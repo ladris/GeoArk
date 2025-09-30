@@ -1,6 +1,94 @@
+import csv
+import os
 from bs4 import BeautifulSoup
 import re
 from urllib.parse import urljoin, urlparse
+
+def load_urls_from_file(filepath):
+    """
+    Loads a list of URLs from a file.
+    Supports .txt (one URL per line) and .csv files.
+    For CSVs, it auto-detects the column containing URLs.
+    """
+    urls = []
+    # Check if file exists and is not empty
+    if not os.path.exists(filepath) or os.path.getsize(filepath) == 0:
+        print(f"Warning: File not found or is empty: {filepath}")
+        return urls
+
+    _, extension = os.path.splitext(filepath)
+
+    if extension.lower() == '.txt':
+        print(f"Reading URLs from text file: {filepath}")
+        with open(filepath, 'r', encoding='utf-8') as f:
+            for line in f:
+                url = line.strip()
+                if url:
+                    urls.append(url)
+    elif extension.lower() == '.csv':
+        print(f"Reading URLs from CSV file: {filepath}")
+        with open(filepath, 'r', encoding='utf-8-sig') as f:
+            # Sniff to detect CSV dialect (e.g., delimiter)
+            try:
+                dialect = csv.Sniffer().sniff(f.read(1024))
+                f.seek(0)
+            except csv.Error:
+                # If sniffing fails, assume standard comma-separated
+                dialect = 'excel'
+
+            reader = csv.reader(f, dialect)
+
+            try:
+                header = next(reader)
+            except StopIteration:
+                # Empty file
+                return urls
+
+            # Heuristic to find the URL column from the header
+            url_col_idx = -1
+            url_keywords = ['url', 'link', 'website', 'href', 'uri']
+            for i, col_name in enumerate(header):
+                if any(keyword in col_name.lower() for keyword in url_keywords):
+                    url_col_idx = i
+                    print(f"  Detected URL column: '{col_name}' (index {i})")
+                    break
+
+            # If no header match, guess based on content of the first data row
+            if url_col_idx == -1:
+                print("  No obvious URL column in header, guessing based on content...")
+                try:
+                    first_row = next(reader)
+                    for i, value in enumerate(first_row):
+                        if value and value.strip().startswith(('http://', 'https://')):
+                            url_col_idx = i
+                            print(f"  Guessed URL column by content: index {i}")
+                            # Add the url from the row we just processed
+                            urls.append(value.strip())
+                            break
+                    # Rewind to read the entire file again (including the row we just read)
+                    f.seek(0)
+                    next(reader) # Skip header again
+                except StopIteration:
+                    # CSV has a header but no data rows
+                    pass
+
+            if url_col_idx == -1:
+                 print("Warning: Could not determine the URL column in the CSV file. Skipping.")
+                 return []
+
+            # Extract URLs from the identified column
+            for row in reader:
+                if len(row) > url_col_idx:
+                    url = row[url_col_idx].strip()
+                    if url:
+                        urls.append(url)
+    else:
+        print(f"Warning: Unsupported file type '{extension}'. Please use .txt or .csv. Skipping.")
+        return []
+
+    print(f"  Found {len(urls)} URLs to process.")
+    return urls
+
 
 class Parser:
     """

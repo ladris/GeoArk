@@ -76,10 +76,11 @@ class Crawler:
         """
         Executes the crawling process.
         """
+        print(f"Starting crawl. Max pages to visit: {self.max_pages}")
         try:
             while self.url_queue and self.pages_crawled < self.max_pages:
                 current_url = self.url_queue.popleft()
-                print(f"Crawling: {current_url}")
+                print(f"Crawling page {self.pages_crawled + 1}/{self.max_pages}: {current_url}")
 
                 try:
                     self.driver.get(current_url)
@@ -88,15 +89,20 @@ class Crawler:
                     time.sleep(2) # Wait a bit for JS rendering
                     html_content = self.driver.page_source
                 except WebDriverException as e:
-                    print(f"Error fetching {current_url} with Selenium: {e}")
+                    print(f"  Error fetching page with Selenium: {e}")
                     continue
 
                 # Pass content to parser
                 datasets, new_links = self.parser.parse(html_content, current_url)
 
                 # Process found datasets
-                self.datasets_found += len(datasets)
+                if datasets:
+                    print(f"  > Found {len(datasets)} potential dataset(s) on this page.")
                 for dataset in datasets:
+                    # Check if link already exists for better logging
+                    exists = self.db_manager.link_exists(dataset['download_link'])
+                    status_tag = "[UPDATE]" if exists else "[NEW]"
+
                     freshness_score = self.scorer.calculate_freshness_score(
                         dataset['date_clues'], dataset['title_clues']
                     )
@@ -108,23 +114,31 @@ class Crawler:
                         'freshness_score': freshness_score,
                         'source_domain': self.domain
                     }
-                    print(f"  Found dataset: {db_data['dataset_title']} ({db_data['resource_type']}) -> Score: {freshness_score}")
+                    print(f"    {status_tag} {db_data['dataset_title']} ({db_data['resource_type']}) -> Score: {freshness_score}")
                     self.db_manager.add_or_update_dataset(db_data)
+                    if not exists:
+                        self.datasets_found += 1
+
 
                 # Add new, unvisited links to the queue
+                newly_added_to_queue = 0
                 for link in new_links:
                     if link not in self.visited_urls:
                         self.visited_urls.add(link)
                         self.url_queue.append(link)
+                        newly_added_to_queue += 1
 
                 self.pages_crawled += 1
-                print(f"  Found {len(new_links)} new links. Queue size: {len(self.url_queue)}")
+                print(f"  Discovered {newly_added_to_queue} new links. Total queue size: {len(self.url_queue)}")
 
                 # Politeness delay
                 time.sleep(self.delay)
 
+            if self.pages_crawled >= self.max_pages:
+                print(f"\nReached maximum page limit ({self.max_pages}).")
+
         finally:
-            print("\nCrawling finished or interrupted.")
+            print("\nCrawling finished or interrupted for this session.")
             self.shutdown()
 
     def shutdown(self):
