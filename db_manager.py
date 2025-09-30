@@ -34,6 +34,55 @@ class DBManager:
         CREATE UNIQUE INDEX IF NOT EXISTS idx_dataset_location
         ON datasets (source_url, download_link);
         ''')
+        self.cursor.execute('''
+        CREATE TABLE IF NOT EXISTS crawl_logs (
+            id INTEGER PRIMARY KEY AUTOINCREMENT,
+            start_url TEXT NOT NULL,
+            start_time DATETIME NOT NULL,
+            end_time DATETIME,
+            pages_crawled INTEGER,
+            datasets_found INTEGER,
+            status TEXT NOT NULL
+        );
+        ''')
+        self.conn.commit()
+
+    def start_crawl_log(self, start_url):
+        """
+        Logs the start of a new crawl session.
+
+        Args:
+            start_url (str): The starting URL for the crawl.
+
+        Returns:
+            int: The ID of the new crawl log entry.
+        """
+        sql = '''
+        INSERT INTO crawl_logs (start_url, start_time, status)
+        VALUES (?, ?, ?);
+        '''
+        start_time = datetime.datetime.now()
+        self.cursor.execute(sql, (start_url, start_time, 'in_progress'))
+        self.conn.commit()
+        return self.cursor.lastrowid
+
+    def end_crawl_log(self, log_id, pages_crawled, datasets_found, status):
+        """
+        Logs the completion of a crawl session.
+
+        Args:
+            log_id (int): The ID of the crawl log entry to update.
+            pages_crawled (int): The total number of pages crawled.
+            datasets_found (int): The total number of datasets found.
+            status (str): The final status of the crawl ('completed' or 'interrupted').
+        """
+        sql = '''
+        UPDATE crawl_logs
+        SET end_time = ?, pages_crawled = ?, datasets_found = ?, status = ?
+        WHERE id = ?;
+        '''
+        end_time = datetime.datetime.now()
+        self.cursor.execute(sql, (end_time, pages_crawled, datasets_found, status, log_id))
         self.conn.commit()
 
     def add_or_update_dataset(self, dataset_data):

@@ -31,6 +31,9 @@ class Crawler:
         self.url_queue = deque([start_url])
         self.visited_urls = {start_url}
 
+        self.pages_crawled = 0
+        self.datasets_found = 0
+
         self.parser = Parser(base_url=start_url)
         self.scorer = Scorer()
         self.domain = urlparse(start_url).netloc
@@ -73,9 +76,8 @@ class Crawler:
         """
         Executes the crawling process.
         """
-        pages_crawled = 0
         try:
-            while self.url_queue and pages_crawled < self.max_pages:
+            while self.url_queue and self.pages_crawled < self.max_pages:
                 current_url = self.url_queue.popleft()
                 print(f"Crawling: {current_url}")
 
@@ -93,6 +95,7 @@ class Crawler:
                 datasets, new_links = self.parser.parse(html_content, current_url)
 
                 # Process found datasets
+                self.datasets_found += len(datasets)
                 for dataset in datasets:
                     freshness_score = self.scorer.calculate_freshness_score(
                         dataset['date_clues'], dataset['title_clues']
@@ -114,7 +117,7 @@ class Crawler:
                         self.visited_urls.add(link)
                         self.url_queue.append(link)
 
-                pages_crawled += 1
+                self.pages_crawled += 1
                 print(f"  Found {len(new_links)} new links. Queue size: {len(self.url_queue)}")
 
                 # Politeness delay
